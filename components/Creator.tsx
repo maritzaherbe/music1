@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GenerationResult, SongBrief, Track, Vibe } from "@/lib/types";
+import SongCard from "@/components/SongCard";
+import Equalizer from "@/components/Equalizer";
+import Confetti from "@/components/Confetti";
 
 type Phase = "wizard" | "generating" | "ready" | "error";
 
@@ -54,17 +57,32 @@ export default function Creator() {
   const [recipientName, setRecipientName] = useState("");
   const [relationship, setRelationship] = useState("");
   const [story, setStory] = useState("");
-  const [vibe, setVibe] = useState<Vibe>("heartfelt");
+  const [vibe, setVibe] = useState<string>("heartfelt");
   const [genre, setGenre] = useState<string>("Acoustic folk");
   const [instrumental, setInstrumental] = useState(false);
 
   // Generation state
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [taskId, setTaskId] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [progressIdx, setProgressIdx] = useState(0);
+  const [showConfetti, setShowConfetti] = useState(false);
   const pollingRef = useRef(false);
 
   const canGenerate = occasion.trim().length > 0 && recipientName.trim().length > 0;
+
+  // A vibe/sound is "custom" when it doesn't match any preset — so the preset
+  // chips deselect and the free-text field shows what the user typed.
+  const isCustomVibe = vibe.length > 0 && !VIBES.some((v) => v.value === vibe);
+  const isCustomGenre = genre.length > 0 && !GENRES.includes(genre);
+
+  // Celebratory flourish exactly once when a song first becomes ready.
+  useEffect(() => {
+    if (phase !== "ready") return;
+    setShowConfetti(true);
+    const id = window.setTimeout(() => setShowConfetti(false), 3400);
+    return () => window.clearTimeout(id);
+  }, [phase]);
 
   // Rotating progress copy while generating.
   useEffect(() => {
@@ -120,6 +138,7 @@ export default function Creator() {
   const handleGenerate = useCallback(async () => {
     setError("");
     setTracks([]);
+    setTaskId("");
     setProgressIdx(0);
     setPhase("generating");
 
@@ -145,8 +164,9 @@ export default function Creator() {
         setPhase("error");
         return;
       }
-      const taskId: string = body.data.taskId;
-      pollStatus(taskId);
+      const newTaskId: string = body.data.taskId;
+      setTaskId(newTaskId);
+      pollStatus(newTaskId);
     } catch {
       setError("Couldn't reach the server. Check your connection and try again.");
       setPhase("error");
@@ -157,15 +177,33 @@ export default function Creator() {
     pollingRef.current = false;
     setPhase("wizard");
     setTracks([]);
+    setTaskId("");
     setError("");
   }, []);
 
   if (phase === "generating") {
-    return <GeneratingView message={PROGRESS_MESSAGES[progressIdx]} recipient={recipientName} />;
+    return (
+      <GeneratingView
+        message={PROGRESS_MESSAGES[progressIdx]}
+        recipient={recipientName}
+        progressIdx={progressIdx}
+      />
+    );
   }
 
   if (phase === "ready") {
-    return <ResultView tracks={tracks} recipient={recipientName} onReset={reset} />;
+    return (
+      <>
+        {showConfetti && <Confetti />}
+        <ResultView
+          tracks={tracks}
+          recipient={recipientName}
+          taskId={taskId}
+          instrumental={instrumental}
+          onReset={reset}
+        />
+      </>
+    );
   }
 
   if (phase === "error") {
@@ -185,7 +223,7 @@ export default function Creator() {
           ))}
         </ChipRow>
         <input
-          className="mt-3 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none placeholder:text-white/30 focus:border-violet-400/50"
+          className={INPUT_CLASS + " mt-3"}
           placeholder="…or type it (e.g. “a 60th birthday”)"
           value={occasion}
           onChange={(e) => setOccasion(e.target.value)}
@@ -197,14 +235,14 @@ export default function Creator() {
         <Label>Who&apos;s it for?</Label>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input
-            className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none placeholder:text-white/30 focus:border-violet-400/50"
+            className={INPUT_CLASS}
             placeholder="Their name (e.g. “Mom”)"
             value={recipientName}
             onChange={(e) => setRecipientName(e.target.value)}
             aria-label="Recipient name"
           />
           <input
-            className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none placeholder:text-white/30 focus:border-violet-400/50"
+            className={INPUT_CLASS}
             placeholder="Who they are to you (optional)"
             value={relationship}
             onChange={(e) => setRelationship(e.target.value)}
@@ -216,7 +254,7 @@ export default function Creator() {
       <Card>
         <Label>Tell us one little story about them</Label>
         <textarea
-          className="min-h-[90px] w-full resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none placeholder:text-white/30 focus:border-violet-400/50"
+          className={INPUT_CLASS + " min-h-[90px] resize-none"}
           placeholder="A favorite memory, an inside joke, something they love…"
           value={story}
           onChange={(e) => setStory(e.target.value)}
@@ -234,6 +272,13 @@ export default function Creator() {
             </Chip>
           ))}
         </ChipRow>
+        <input
+          className={INPUT_CLASS + " mt-3"}
+          placeholder="…or describe your own vibe (e.g. “dreamy and cinematic”)"
+          value={isCustomVibe ? vibe : ""}
+          onChange={(e) => setVibe(e.target.value)}
+          aria-label="Your own vibe"
+        />
       </Card>
 
       <Card>
@@ -245,10 +290,17 @@ export default function Creator() {
             </Chip>
           ))}
         </ChipRow>
-        <label className="mt-4 flex cursor-pointer items-center gap-3 text-sm text-white/70">
+        <input
+          className={INPUT_CLASS + " mt-3"}
+          placeholder="…or type your own sound (e.g. “dreamy synthwave”)"
+          value={isCustomGenre ? genre : ""}
+          onChange={(e) => setGenre(e.target.value)}
+          aria-label="Your own sound"
+        />
+        <label className="mt-4 flex cursor-pointer items-center gap-3 text-sm text-slate-600">
           <input
             type="checkbox"
-            className="h-4 w-4 accent-violet-500"
+            className="h-4 w-4 accent-fuchsia-500"
             checked={instrumental}
             onChange={(e) => setInstrumental(e.target.checked)}
           />
@@ -259,11 +311,11 @@ export default function Creator() {
       <button
         onClick={handleGenerate}
         disabled={!canGenerate}
-        className="w-full rounded-2xl bg-gradient-to-r from-violet-500 to-pink-500 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-violet-900/40 transition enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+        className="w-full rounded-2xl bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-400 px-6 py-4 text-base font-bold text-white shadow-lg shadow-pink-500/30 transition-all duration-200 enabled:hover:brightness-105 enabled:hover:shadow-xl enabled:hover:shadow-pink-500/40 enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
       >
         {canGenerate ? "✨ Create my song" : "Add the occasion & who it's for"}
       </button>
-      <p className="text-center text-xs text-white/40">
+      <p className="text-center text-xs text-slate-400">
         Takes about a minute. You&apos;ll get two versions to choose from.
       </p>
     </div>
@@ -272,15 +324,54 @@ export default function Creator() {
 
 /* ---------- sub-views ---------- */
 
-function GeneratingView({ message, recipient }: { message: string; recipient: string }) {
+function GeneratingView({
+  message,
+  recipient,
+  progressIdx,
+}: {
+  message: string;
+  recipient: string;
+  progressIdx: number;
+}) {
   return (
-    <div className="animate-fade-in rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-      <div className="mx-auto mb-6 h-16 w-16 animate-spin rounded-full border-4 border-white/10 border-t-violet-400" />
-      <h2 className="text-xl font-semibold">
+    <div
+      className="animate-scale-in rounded-3xl border border-slate-900/[0.06] bg-white/70 p-8 text-center shadow-[0_20px_50px_-24px_rgba(190,60,140,0.35)] backdrop-blur-sm"
+      role="status"
+      aria-live="polite"
+    >
+      <Equalizer />
+      <h2 className="mt-2 text-xl font-bold text-slate-900">
         Composing {recipient ? `${recipient}'s` : "your"} song…
       </h2>
-      <p className="mt-2 text-sm text-white/60 transition-all">{message}</p>
-      <p className="mt-6 text-xs text-white/30">
+      <p key={message} className="mt-2 min-h-[1.25rem] animate-fade-in text-sm text-slate-500">
+        {message}
+      </p>
+
+      <div className="mx-auto mt-6 h-1.5 max-w-xs overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+        <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-fuchsia-500 to-orange-400 motion-safe:animate-progress-slide" />
+      </div>
+
+      <ol className="mx-auto mt-6 max-w-xs space-y-1.5 text-left" aria-hidden="true">
+        {PROGRESS_MESSAGES.map((m, i) => (
+          <li
+            key={m}
+            className={
+              "flex items-center gap-2 text-xs transition-colors duration-300 " +
+              (i < progressIdx ? "text-slate-400" : i === progressIdx ? "text-slate-800" : "text-slate-300")
+            }
+          >
+            <span
+              className={
+                "inline-block h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-300 " +
+                (i <= progressIdx ? "bg-fuchsia-500" : "bg-slate-300")
+              }
+            />
+            {m}
+          </li>
+        ))}
+      </ol>
+
+      <p className="mt-6 text-xs text-slate-400">
         Hang tight — great songs take about a minute. Don&apos;t close this page.
       </p>
     </div>
@@ -290,29 +381,40 @@ function GeneratingView({ message, recipient }: { message: string; recipient: st
 function ResultView({
   tracks,
   recipient,
+  taskId,
+  instrumental,
   onReset,
 }: {
   tracks: Track[];
   recipient: string;
+  taskId: string;
+  instrumental: boolean;
   onReset: () => void;
 }) {
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold">🎉 It&apos;s ready!</h2>
-        <p className="mt-1 text-sm text-white/60">
+      <div className="animate-scale-in text-center">
+        <h2 className="text-2xl font-extrabold text-slate-900">🎉 It&apos;s ready!</h2>
+        <p className="mt-1 text-sm text-slate-500">
           Here {tracks.length > 1 ? "are two versions" : "it is"}
           {recipient ? ` for ${recipient}` : ""}. Pick your favorite.
         </p>
       </div>
 
       {tracks.map((t, i) => (
-        <TrackCard key={t.id} track={t} index={i} />
+        <SongCard
+          key={t.id}
+          track={t}
+          index={i}
+          taskId={taskId}
+          instrumental={instrumental}
+          recipient={recipient}
+        />
       ))}
 
       <button
         onClick={onReset}
-        className="w-full rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-medium text-white/80 transition hover:bg-white/10"
+        className="w-full rounded-2xl border border-slate-300 bg-white/70 px-6 py-3 text-sm font-semibold text-slate-600 transition-all duration-150 hover:border-fuchsia-300 hover:bg-white active:scale-[0.98]"
       >
         ← Make another song
       </button>
@@ -320,63 +422,15 @@ function ResultView({
   );
 }
 
-function TrackCard({ track, index }: { track: Track; index: number }) {
-  const src = track.audioUrl || track.streamUrl || "";
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-      <div className="flex items-center gap-4">
-        {track.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={track.imageUrl}
-            alt=""
-            className="h-16 w-16 shrink-0 rounded-xl object-cover"
-          />
-        ) : (
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-violet-500/40 to-pink-500/40 text-2xl">
-            🎵
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">
-            {track.title || `Version ${index + 1}`}
-          </p>
-          <p className="truncate text-xs text-white/50">
-            {track.tags || "your original song"}
-            {track.durationSec ? ` · ${Math.round(track.durationSec)}s` : ""}
-          </p>
-        </div>
-      </div>
-      {src ? (
-        <audio controls preload="none" className="mt-3 w-full" src={src}>
-          Your browser doesn&apos;t support audio playback.
-        </audio>
-      ) : (
-        <p className="mt-3 text-xs text-white/40">Finalizing this track…</p>
-      )}
-      {track.audioUrl && (
-        <a
-          href={track.audioUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-block text-xs font-medium text-violet-300 hover:text-violet-200"
-        >
-          ↓ Download MP3
-        </a>
-      )}
-    </div>
-  );
-}
-
 function ErrorView({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="animate-fade-in rounded-3xl border border-red-400/20 bg-red-500/5 p-8 text-center">
+    <div className="animate-scale-in rounded-3xl border border-red-200 bg-red-50 p-8 text-center shadow-[0_20px_50px_-24px_rgba(220,80,80,0.35)]">
       <div className="mb-3 text-3xl">😕</div>
-      <h2 className="text-lg font-semibold">Something went sideways</h2>
-      <p className="mx-auto mt-2 max-w-sm text-sm text-white/60">{message}</p>
+      <h2 className="text-lg font-bold text-slate-900">Something went sideways</h2>
+      <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">{message}</p>
       <button
         onClick={onRetry}
-        className="mt-6 rounded-xl bg-white/10 px-5 py-2.5 text-sm font-medium hover:bg-white/15"
+        className="mt-6 rounded-xl bg-red-100 px-5 py-2.5 text-sm font-semibold text-red-700 transition-all duration-150 hover:bg-red-200 active:scale-95"
       >
         Try again
       </button>
@@ -386,16 +440,19 @@ function ErrorView({ message, onRetry }: { message: string; onRetry: () => void 
 
 /* ---------- primitives ---------- */
 
+const INPUT_CLASS =
+  "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-fuchsia-400";
+
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+    <div className="rounded-3xl border border-slate-900/[0.06] bg-white/70 p-5 shadow-[0_12px_36px_-20px_rgba(150,60,130,0.28)] backdrop-blur-sm transition-colors duration-300 focus-within:border-fuchsia-300 hover:border-fuchsia-200">
       {children}
     </div>
   );
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <h3 className="mb-3 text-sm font-semibold text-white/90">{children}</h3>;
+  return <h3 className="mb-3 text-sm font-bold text-slate-800">{children}</h3>;
 }
 
 function ChipRow({ children }: { children: React.ReactNode }) {
@@ -417,10 +474,10 @@ function Chip({
       onClick={onClick}
       aria-pressed={active}
       className={
-        "rounded-full border px-3.5 py-1.5 text-sm transition " +
+        "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all duration-200 active:scale-90 " +
         (active
-          ? "border-violet-400 bg-violet-500/20 text-white"
-          : "border-white/15 bg-transparent text-white/70 hover:border-white/30")
+          ? "scale-[1.03] border-transparent bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white shadow-md shadow-pink-500/30"
+          : "border-slate-300 bg-white/70 text-slate-600 hover:border-fuchsia-300 hover:bg-white")
       }
     >
       {children}

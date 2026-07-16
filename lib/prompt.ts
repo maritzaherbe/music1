@@ -17,14 +17,16 @@ const VIBE_WORDS: Record<Vibe, string> = {
 const MAX_LEN = 480;
 
 export function composePrompt(brief: SongBrief): string {
-  const vibe = VIBE_WORDS[brief.vibe] ?? "warm and heartfelt";
+  // Known preset → rich descriptor; custom free text → use as-is; empty → default.
+  const vibe = VIBE_WORDS[brief.vibe as Vibe] ?? (brief.vibe.trim() || "warm and heartfelt");
+  const genre = brief.genre.trim() || "pop";
   const who = brief.recipientName?.trim() || "someone special";
   const rel = brief.relationship?.trim();
   const relClause = rel ? ` (${rel})` : "";
   const story = brief.story?.trim();
 
   const parts: string[] = [];
-  parts.push(`A ${brief.genre} song for ${who}${relClause} to celebrate ${brief.occasion}.`);
+  parts.push(`A ${genre} song for ${who}${relClause} to celebrate ${brief.occasion}.`);
   parts.push(`Mood: ${vibe}.`);
   if (story) parts.push(`It should reference this: ${story}.`);
   parts.push(

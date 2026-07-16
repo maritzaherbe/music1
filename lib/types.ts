@@ -13,8 +13,8 @@ export interface SongBrief {
   recipientName: string; // e.g. "Mom"
   relationship: string; // e.g. "my mother"
   story: string; // one detail / memory
-  vibe: Vibe;
-  genre: string; // friendly preset label, e.g. "Acoustic folk"
+  vibe: string; // a preset Vibe key OR the user's own free-text description
+  genre: string; // a preset sound label OR the user's own free-text description
   instrumental: boolean; // false = with vocals
 }
 
@@ -29,10 +29,25 @@ export interface Track {
   imageUrl: string | null; // cover art
   durationSec: number | null;
   tags: string | null;
+  lyrics: string | null; // plain lyrics text (fallback when timestamped lyrics aren't ready)
 }
 
 export interface GenerationResult {
   status: GenerationStatus;
   tracks: Track[];
   error?: string;
+}
+
+// Karaoke-style word-by-word timing, normalized from the provider's
+// timestamped-lyrics endpoint.
+export interface LyricsWord {
+  text: string;
+  startS: number;
+  endS: number;
+  section?: string; // e.g. "Verse", "Chorus" — starts a new section at this word
+}
+
+export interface LyricsResult {
+  words: LyricsWord[];
+  waveform: number[];
 }
