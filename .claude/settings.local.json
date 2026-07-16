@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__edbb8565-1136-40ea-b335-ffc4819dfd50__firecrawl_scrape",
+      "mcp__edbb8565-1136-40ea-b335-ffc4819dfd50__firecrawl_search",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(mkdir -p /Users/maritzaherb/E2E_App/.claude/agents)",
+      "Bash(cat)"
+    ]
+  }
+}
