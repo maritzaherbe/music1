@@ -14,13 +14,15 @@ export default function KaraokeLyrics({
   audioId,
   fallbackLyrics,
   audioRef,
+  ready,
 }: {
   taskId: string;
   audioId: string;
   fallbackLyrics: string | null;
   audioRef: React.RefObject<HTMLAudioElement>;
+  ready: boolean; // track fully rendered (audioUrl present) => alignment likely available
 }) {
-  const { status, words } = useTimestampedLyrics(taskId, audioId, Boolean(taskId && audioId));
+  const { status, words } = useTimestampedLyrics(taskId, audioId, ready && Boolean(taskId && audioId));
   const [activeIdx, setActiveIdx] = useState(-1);
   const wordRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const reducedMotion = usePrefersReducedMotion();
@@ -87,6 +89,21 @@ export default function KaraokeLyrics({
     );
   }
 
+  // Not synced yet (waiting on alignment) or won't sync — show the plain
+  // lyrics we already have; they upgrade to karaoke in place once ready.
+  if (fallbackLyrics) {
+    return (
+      <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-900/[0.06] bg-white/60 p-4">
+        {status === "loading" && (
+          <p className="mb-2 text-[11px] font-medium text-fuchsia-500/80">✨ Syncing lyrics to the music…</p>
+        )}
+        <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-600">
+          {fallbackLyrics}
+        </pre>
+      </div>
+    );
+  }
+
   if (status === "loading" || status === "idle") {
     return (
       <div className="rounded-2xl border border-slate-900/[0.06] bg-white/60 p-4" role="status" aria-live="polite">
@@ -100,17 +117,6 @@ export default function KaraokeLyrics({
             />
           ))}
         </div>
-      </div>
-    );
-  }
-
-  // status === "unavailable" — fall back to plain lyrics text if we have it.
-  if (fallbackLyrics) {
-    return (
-      <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-900/[0.06] bg-white/60 p-4">
-        <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-600">
-          {fallbackLyrics}
-        </pre>
       </div>
     );
   }

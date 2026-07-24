@@ -12,7 +12,13 @@ export const dynamic = "force-dynamic";
 
 // Best-effort allowlist of hosts the Suno reseller (and its CDNs) are known
 // to serve generated audio from. Extend if the provider adds/changes a host.
-const ALLOWED_HOST_SUFFIXES = ["sunoapi.org", "suno.ai", "aiquickdraw.com", "erweima.ai"];
+const ALLOWED_HOST_SUFFIXES = [
+  "sunoapi.org",
+  "suno.ai",
+  "aiquickdraw.com", // downloadable mp3s (tempfile.aiquickdraw.com) — verified live
+  "removeai.ai", // stream + cover art (musicfile.removeai.ai) — verified live
+  "erweima.ai",
+];
 
 function isAllowedHost(hostname: string): boolean {
   return ALLOWED_HOST_SUFFIXES.some(

@@ -100,11 +100,16 @@ export default function Creator() {
   const pollStatus = useCallback(async (taskId: string) => {
     const startedAt = Date.now();
     pollingRef.current = true;
+    let reachedReady = false; // have we shown the song yet (stream ready)?
 
     while (pollingRef.current) {
       if (Date.now() - startedAt > MAX_WAIT_MS) {
-        setError("This is taking longer than expected. Please try again.");
-        setPhase("error");
+        // If the song is already playing, just stop polling; only error if we
+        // never got anything.
+        if (!reachedReady) {
+          setError("This is taking longer than expected. Please try again.");
+          setPhase("error");
+        }
         return;
       }
       try {
@@ -113,20 +118,30 @@ export default function Creator() {
         });
         const body = await res.json();
         if (body?.error) {
-          setError(body.error.message);
-          setPhase("error");
+          if (!reachedReady) {
+            setError(body.error.message);
+            setPhase("error");
+          }
           return;
         }
         const result: GenerationResult = body.data;
-        if (result.status === "ready" && result.tracks.length > 0) {
-          setTracks(result.tracks);
-          setPhase("ready");
+        if (result.status === "failed") {
+          if (!reachedReady) {
+            setError(result.error || "Generation failed. Please try again.");
+            setPhase("error");
+          }
           return;
         }
-        if (result.status === "failed") {
-          setError(result.error || "Generation failed. Please try again.");
-          setPhase("error");
-          return;
+        if (result.status === "ready" && result.tracks.length > 0) {
+          setTracks(result.tracks);
+          if (!reachedReady) {
+            setPhase("ready");
+            reachedReady = true;
+          }
+          // Keep polling in the background: the downloadable MP3 (audioUrl),
+          // duration, and karaoke alignment only land ~1-2 min after the
+          // stream is playable. Stop once every track has its final audio.
+          if (result.tracks.every((t) => t.audioUrl)) return;
         }
       } catch {
         // transient network hiccup — keep polling

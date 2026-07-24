@@ -10,10 +10,11 @@ interface LyricsState {
   words: LyricsWord[];
 }
 
-// Timestamped/aligned lyrics usually aren't ready the instant a track's audio
-// is — retry a few times with backoff before giving up and letting the
-// caller fall back to plain lyrics.
-const RETRY_DELAYS_MS = [0, 2500, 5000, 9000];
+// Callers only enable this once the track is fully rendered (audioUrl present),
+// at which point word-level alignment is usually ready too — but it can lag by
+// a few seconds, so retry a handful of times before falling back to plain
+// lyrics. (Gating on audioUrl keeps us from hammering the paid lyrics endpoint.)
+const RETRY_DELAYS_MS = [0, 4000, 8000, 12000, 16000];
 
 export function useTimestampedLyrics(
   taskId: string,

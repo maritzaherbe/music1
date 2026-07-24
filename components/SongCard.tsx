@@ -110,7 +110,13 @@ export default function SongCard({
 
       {!instrumental && (
         <div className="mt-4">
-          <KaraokeLyrics taskId={taskId} audioId={track.id} fallbackLyrics={track.lyrics} audioRef={audioRef} />
+          <KaraokeLyrics
+            taskId={taskId}
+            audioId={track.id}
+            fallbackLyrics={track.lyrics}
+            audioRef={audioRef}
+            ready={Boolean(track.audioUrl)}
+          />
         </div>
       )}
 
